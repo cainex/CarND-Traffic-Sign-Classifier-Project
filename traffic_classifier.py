@@ -136,122 +136,57 @@ X_test_normalized = np.array(X_test_normalized)
 ### Feel free to use as many code cells as needed.
 import tensorflow as tf
 
-def TrafficSignNet(x):    
-    # Arguments used for tf.truncated_normal, randomly defines variables for the weights and biases for each layer
+def conv_layer(x, filter_shape, input_depth, filter_depth, pad="VALID"):
     mu = 0
     sigma = 0.1
     
-    # TODO: Layer 1: Convolutional. Input = 32x32x1. Output = 28x28x6.
-    l1_weights = tf.Variable(tf.truncated_normal([5,5,3,18], mu, sigma))
-    l1_bias = tf.Variable(tf.zeros(18))
-#    l1_weights = tf.Variable(tf.truncated_normal([5,5,1,6], mu, sigma))
-#    l1_bias = tf.Variable(tf.zeros(6))
-    l1_strides = [1,1,1,1]
-    l1_conv = tf.nn.conv2d(x, l1_weights, l1_strides, padding="VALID")
-    l1_conv = tf.nn.bias_add(l1_conv, l1_bias)
+    l_weights = tf.Variable(tf.truncated_normal([filter_shape[0],filter_shape[1],input_depth,filter_depth], mu, sigma))
+    l_bias = tf.Variable(tf.zeros(filter_depth))
+    l_strides = [1,1,1,1]
+    l_conv = tf.nn.conv2d(x, l_weights, l_strides, padding=pad)
+    l_conv = tf.nn.bias_add(l_conv, l_bias)
 
     # TODO: Activation.
-    l1_conv = tf.nn.relu(l1_conv)
+    l_conv = tf.nn.relu(l_conv)
 
-    # TODO: Pooling. Input = 28x28x6. Output = 14x14x6.
+    return l_conv
+
+
+def TrafficSignNet(x, keep_prob):    
+    # Arguments used for tf.truncated_normal, randomly defines variables for the weights and biases for each layer
+    # Layer 1
+    l1_conv = conv_layer(x, (5,5), 1, 32, pad="SAME")
+    l1_conv = conv_layer(l1_conv, (5,5), 32, 32)
+
     l1_ksize = [1,2,2,1]
     l1_pool_strides = [1,2,2,1]
     l1_conv = tf.nn.max_pool(l1_conv,l1_ksize,l1_pool_strides,"VALID")
 
-    # TODO: Layer 2: Convolutional. Output = 10x10x16.
-    l2_weights = tf.Variable(tf.truncated_normal([5,5,18,48], mu, sigma))
-#    l2_weights = tf.Variable(tf.truncated_normal([5,5,6,16], mu, sigma))
-    l2_bias = tf.Variable(tf.zeros(48))
-    l2_strides = [1,1,1,1]
-    l2_conv = tf.nn.conv2d(l1_conv, l2_weights, l2_strides, padding="VALID")
-    l2_conv = tf.nn.bias_add(l2_conv, l2_bias)
-    
-    # TODO: Activation.
-    l2_conv = tf.nn.relu(l2_conv)
+    # Layer 2
+    l2_conv = conv_layer(l1_conv, (5,5), 32, 64, pad="SAME")
+    l2_conv = conv_layer(l2_conv, (5,5), 64, 64)
 
-    l2_1_1_weights = tf.Variable(tf.truncated_normal([1,1,48,16], mu, sigma))
-    l2_1_1_bias = tf.Variable(tf.zeros(16))
-    l2_1_1_strides = [1,1,1,1]
-    l2_1_1_conv = tf.nn.conv2d(l2_conv,l2_1_1_weights, l2_1_1_strides, padding="VALID")
-    l2_1_1_conv = tf.nn.bias_add(l2_1_1_conv, l2_1_1_bias)
-    l2_1_1_conv = tf.nn.relu(l2_1_1_conv)
+#    l2_ksize = [1,2,2,1]
+#    l2_pool_strides = [1,2,2,1]
+#    l2_conv = tf.nn.max_pool(l2_conv,l2_ksize,l2_pool_strides,"VALID")
 
-    # TODO: Pooling. Input = 10x10x16. Output = 5x5x16.
-    l2_ksize = [1,2,2,1]
-    l2_pool_strides = [1,2,2,1]
-    l2_conv = tf.nn.max_pool(l2_1_1_conv,l2_ksize,l2_pool_strides,"VALID")
+    # Layer 3 Inceptoin Layer
+    l3_inc_55_11_conv = conv_layer(l2_conv, (1,1), 64, 16, pad="SAME")
+    l3_inc_55_conv = conv_layer(l3_inc_55_11_conv, (5,5), 16, 16, pad="SAME")
+ 
+    l3_inc_33_11_conv = conv_layer(l2_conv, (1,1), 64, 16, pad="SAME")
+    l3_inc_33_conv = conv_layer(l3_inc_33_11_conv, (3,3), 16, 16, pad="SAME")
 
+    l3_inc_conv = tf.concat([l3_inc_55_conv, l3_inc_33_conv], axis=3)
+
+    l3_inc_conv = conv_layer(l3_inc_conv, (1,1), 32, 16, pad="SAME")
+
+    l3_inc_ksize = [1,2,2,1]
+    l3_inc_pool_strides = [1,2,2,1]
+    l3_inc_conv = tf.nn.max_pool(l3_inc_conv, l3_inc_ksize, l3_inc_pool_strides,"VALID")
+ 
     # TODO: Flatten. Input = 5x5x16. Output = 400.
-    l2_flat = tf.reshape(l2_conv, [-1,400])
-    
-    # TODO: Layer 3: Fully Connected. Input = 400. Output = 120.
-    l3_dense = tf.layers.dense(l2_flat, 300)
-    
-    # TODO: Activation.
-    l3_dense = tf.nn.relu(l3_dense)
-
-    # TODO: Layer 4: Fully Connected. Input = 120. Output = 84.
-    l4_dense = tf.layers.dense(l3_dense, 200)
-    
-    # TODO: Activation.
-    l4_dense = tf.nn.relu(l4_dense)
-
-    # TODO: Layer 5: Fully Connected. Input = 84. Output = 10.
-    logits = tf.layers.dense(l4_dense, 43)
-    
-    return logits
-
-def TrafficSignGrayNet(x, keep_prob):    
-    # Arguments used for tf.truncated_normal, randomly defines variables for the weights and biases for each layer
-    mu = 0
-    sigma = 0.1
-    
-    # TODO: Layer 1: Convolutional. Input = 32x32x1. Output = 28x28x6.
-    l1_weights = tf.Variable(tf.truncated_normal([5,5,1,32], mu, sigma))
-    l1_bias = tf.Variable(tf.zeros(32))
-    l1_strides = [1,1,1,1]
-    l1_conv = tf.nn.conv2d(x, l1_weights, l1_strides, padding="VALID")
-    l1_conv = tf.nn.bias_add(l1_conv, l1_bias)
-
-    # TODO: Activation.
-    l1_conv = tf.nn.relu(l1_conv)
-
-    l1_1_1_weights = tf.Variable(tf.truncated_normal([1,1,32,18], mu, sigma))
-    l1_1_1_bias = tf.Variable(tf.zeros(18))
-    l1_1_1_strides = [1,1,1,1]
-    l1_1_1_conv = tf.nn.conv2d(l1_conv,l1_1_1_weights, l1_1_1_strides, padding="VALID")
-    l1_1_1_conv = tf.nn.bias_add(l1_1_1_conv, l1_1_1_bias)
-    l1_1_1_conv = tf.nn.relu(l1_1_1_conv)
-
-    # TODO: Pooling. Input = 28x28x6. Output = 14x14x6.
-    l1_ksize = [1,2,2,1]
-    l1_pool_strides = [1,2,2,1]
-    l1_conv = tf.nn.max_pool(l1_1_1_conv,l1_ksize,l1_pool_strides,"VALID")
-
-    # TODO: Layer 2: Convolutional. Output = 10x10x16.
-    l2_weights = tf.Variable(tf.truncated_normal([5,5,18,48], mu, sigma))
-    l2_bias = tf.Variable(tf.zeros(48))
-    l2_strides = [1,1,1,1]
-    l2_conv = tf.nn.conv2d(l1_conv, l2_weights, l2_strides, padding="VALID")
-    l2_conv = tf.nn.bias_add(l2_conv, l2_bias)
-    
-    # TODO: Activation.
-    l2_conv = tf.nn.relu(l2_conv)
-
-    l2_1_1_weights = tf.Variable(tf.truncated_normal([1,1,48,16], mu, sigma))
-    l2_1_1_bias = tf.Variable(tf.zeros(16))
-    l2_1_1_strides = [1,1,1,1]
-    l2_1_1_conv = tf.nn.conv2d(l2_conv,l2_1_1_weights, l2_1_1_strides, padding="VALID")
-    l2_1_1_conv = tf.nn.bias_add(l2_1_1_conv, l2_1_1_bias)
-    l2_1_1_conv = tf.nn.relu(l2_1_1_conv)
-
-    # TODO: Pooling. Input = 10x10x16. Output = 5x5x16.
-    l2_ksize = [1,2,2,1]
-    l2_pool_strides = [1,2,2,1]
-    l2_conv = tf.nn.max_pool(l2_1_1_conv,l2_ksize,l2_pool_strides,"VALID")
-
-    # TODO: Flatten. Input = 5x5x16. Output = 400.
-    l2_flat = tf.reshape(l2_conv, [-1,400])
+    l2_flat = tf.reshape(l3_inc_conv, [-1,400])
     
     # TODO: Layer 3: Fully Connected. Input = 400. Output = 120.
     l3_dense = tf.layers.dense(l2_flat, 300)
@@ -279,6 +214,46 @@ def TrafficSignGrayNet(x, keep_prob):
     
     return logits
 
+def TrafficSignGrayNet(x, keep_prob):    
+    # Arguments used for tf.truncated_normal, randomly defines variables for the weights and biases for each layer
+    # Layer 1
+    l1_conv = conv_layer(x, (5,5), 1, 32)
+    l1_1_1_conv = conv_layer(l1_conv, (1,1), 32, 18)
+
+    l1_ksize = [1,2,2,1]
+    l1_pool_strides = [1,2,2,1]
+    l1_1_1_conv = tf.nn.max_pool(l1_1_1_conv,l1_ksize,l1_pool_strides,"VALID")
+
+    # Layer 2
+    l2_conv = conv_layer(l1_1_1_conv, (5,5), 18, 48)
+    l2_1_1_conv = conv_layer(l2_conv, (1,1), 48, 16)
+
+    l2_ksize = [1,2,2,1]
+    l2_pool_strides = [1,2,2,1]
+    l2_1_1_conv = tf.nn.max_pool(l2_1_1_conv,l2_ksize,l2_pool_strides,"VALID")
+
+    l2_flat = tf.reshape(l2_1_1_conv, [-1,400])
+    
+    # Layer 3
+    l3_dense = tf.layers.dense(l2_flat, 300)
+    l3_dense = tf.nn.relu(l3_dense)
+    l3_dense = tf.nn.dropout(l3_dense, keep_prob)
+
+    # Layer 4
+    l4_dense = tf.layers.dense(l3_dense, 200)
+    l4_dense = tf.nn.relu(l4_dense)
+    l4_dense = tf.nn.dropout(l4_dense, keep_prob)
+
+    # Layer 5
+    l5_dense = tf.layers.dense(l4_dense, 128)
+    l5_dense = tf.nn.relu(l5_dense)
+    l5_dense = tf.nn.dropout(l5_dense, keep_prob)
+
+    # Output Layer
+    logits = tf.layers.dense(l5_dense, 43)
+    
+    return logits
+
 ### Train your model here.
 ### Calculate and report the accuracy on the training and validation set.
 ### Once a final model architecture is selected, 
@@ -286,26 +261,18 @@ def TrafficSignGrayNet(x, keep_prob):
 ### Feel free to use as many code cells as needed.
 from sklearn.utils import shuffle
 
-use_gray = True
 
-x = None
-if use_gray:
-    x = tf.placeholder(tf.float32, (None, 32,32,1), name="INPUT")
-else:
-    x = tf.placeholder(tf.float32, (None, 32,32,3), name="INPUT")
+x = tf.placeholder(tf.float32, (None, 32,32,1), name="INPUT")
 y = tf.placeholder(tf.uint8, (None), name="LABELS")
 one_hot_y = tf.one_hot(y,n_classes)
 keep_prob = tf.placeholder(tf.float32)
 
-EPOCHS = 30
+EPOCHS = 15
 BATCH_SIZE = 128
 rate = 0.001
 
-logits = None
-if use_gray:
-    logits = TrafficSignGrayNet(x, keep_prob)
-else: 
-    logits = TrafficSignNet(x, keep_prob)
+#logits = TrafficSignGrayNet(x, keep_prob)
+logits = TrafficSignNet(x, keep_prob)
 cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=one_hot_y, logits=logits)
 loss_operation = tf.reduce_mean(cross_entropy)
 optimizer = tf.train.AdamOptimizer(learning_rate = rate)
@@ -332,28 +299,24 @@ with tf.Session() as sess:
     print("Training...")
     print()
     for i in range(EPOCHS):
-        if use_gray:
-            X_train_gray_normalized, y_train = shuffle(X_train_gray_normalized, y_train)
-        else:
-            X_train_normalized, y_train = shuffle(X_train_normalized, y_train)
+        X_train_gray_normalized, y_train = shuffle(X_train_gray_normalized, y_train)
         for offset in range(0, num_examples, BATCH_SIZE):
             end = offset + BATCH_SIZE
-            batch_x = None
-            batch_y = None
-            if use_gray:
-                batch_x, batch_y = X_train_gray_normalized[offset:end], y_train[offset:end]
-            else:
-                batch_x, batch_y = X_train_normalized[offset:end], y_train[offset:end]
+            batch_x, batch_y = X_train_gray_normalized[offset:end], y_train[offset:end]
             sess.run(training_operation, feed_dict={x: batch_x, y: batch_y, keep_prob: 0.4})
 
-        valid_accuracy = None
-        if use_gray:    
-            validation_accuracy = evaluate(X_valid_gray_normalized, y_valid)
-        else:
-            validation_accuracy = evaluate(X_valid_normalized, y_valid)
+        validation_accuracy = evaluate(X_valid_gray_normalized, y_valid)
         print("EPOCH {} ...".format(i+1))
         print("Validation Accuracy = {:.3f}".format(validation_accuracy))
         print()
         
     saver.save(sess, './traffic_sign')
     print("Model saved")
+
+    ### Test model
+    with tf.Session() as sess:
+        saver.restore(sess, tf.train.latest_checkpoint('.'))
+
+        test_accuracy = evaluate(X_test_gray_normalized, y_test)
+        print("Test Accuracy = {:.3f}".format(test_accuracy))
+
