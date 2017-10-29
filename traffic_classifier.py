@@ -87,50 +87,32 @@ X_train_gray_normalized = []
 X_valid_gray_normalized = []
 X_test_gray_normalized = []
 
+import cv2
+
+def convert_to_gray_and_normalize(x):
+    return np.reshape((cv2.cvtColor(x, cv2.COLOR_RGB2GRAY)-[128])/[128], [32,32,1])  
+
 ### Preprocess the data here. It is required to normalize the data. Other preprocessing steps could include 
 ### converting to grayscale, etc.
 ### Feel free to use as many code cells as needed.
 for i in range(n_train):
-    X_train_gray_normalized.append(np.reshape((rgb2gray(X_train[i])), [32,32,1]))
-#    X_train_gray_normalized.append(np.reshape((rgb2gray(X_train[i])-128)/128, [32,32,1]))
+    X_train_gray_normalized.append(convert_to_gray_and_normalize(X_train[i]))
 
 for i in range(n_validation):
-    X_valid_gray_normalized.append(np.reshape((rgb2gray(X_valid[i])), [32,32,1]))
-#    X_valid_gray_normalized.append(np.reshape((rgb2gray(X_valid[i])-128)/128, [32,32,1]))
+    X_valid_gray_normalized.append(convert_to_gray_and_normalize(X_valid[i]))
 
 for i in range(n_test):
-    X_test_gray_normalized.append(np.reshape((rgb2gray(X_test[i])), [32,32,1]))
-#    X_test_gray_normalized.append(np.reshape((rgb2gray(X_test[i])-128)/128, [32,32,1]))
-
-print(X_train[0].shape)
-print(X_train_gray_normalized[0].shape)
-print(X_train[0][12])
-print(X_train_gray_normalized[0][12])
-
+    X_test_gray_normalized.append(convert_to_gray_and_normalize(X_test[i]))
 
 X_train_gray_normalized = np.array(X_train_gray_normalized)
 X_valid_gray_normalized = np.array(X_valid_gray_normalized)
 X_test_gray_normalized = np.array(X_test_gray_normalized)
 
-X_train_normalized = []
-X_valid_normalized = []
-X_test_normalized = []
 
-for i in range(n_train):
-    X_train_normalized.append((X_train[i]-128)/128)
-
-for i in range(n_validation):
-    X_valid_normalized.append((X_valid[i]-128)/128)
-
-for i in range(n_test):
-    X_test_normalized.append((X_test[i]-128)/128)
-
-X_train_normalized = np.array(X_train_normalized)
-X_valid_normalized = np.array(X_valid_normalized)
-X_test_normalized = np.array(X_test_normalized)
-
-# print(X_train_gray_normalized.shape)
-# print(X_train_normalized.shape)
+#print("RGB shape ", X_train[0].shape)
+#print("GRAY shape ",X_train_gray.shape)
+#print(X_train[0][0])
+#print(X_train_gray_normalized[0][0])
 
 ### Define your architecture here.
 ### Feel free to use as many code cells as needed.
@@ -171,15 +153,22 @@ def TrafficSignNet(x, keep_prob):
 #    l2_conv = tf.nn.max_pool(l2_conv,l2_ksize,l2_pool_strides,"VALID")
 
     # Layer 3 Inceptoin Layer
-    l3_inc_55_11_conv = conv_layer(l2_conv, (1,1), 64, 16, pad="SAME")
-    l3_inc_55_conv = conv_layer(l3_inc_55_11_conv, (5,5), 16, 16, pad="SAME")
+    inception_kernels = 8
+
+    l3_inc_11_conv = conv_layer(l2_conv, (1,1), 64, inception_kernels, pad="SAME")
+
+    l3_inc_55_11_conv = conv_layer(l2_conv, (1,1), 64, inception_kernels, pad="SAME")
+    l3_inc_55_conv = conv_layer(l3_inc_55_11_conv, (5,5), inception_kernels, inception_kernels, pad="SAME")
  
-    l3_inc_33_11_conv = conv_layer(l2_conv, (1,1), 64, 16, pad="SAME")
-    l3_inc_33_conv = conv_layer(l3_inc_33_11_conv, (3,3), 16, 16, pad="SAME")
+    l3_inc_33_11_conv = conv_layer(l2_conv, (1,1), 64, inception_kernels, pad="SAME")
+    l3_inc_33_conv = conv_layer(l3_inc_33_11_conv, (3,3), inception_kernels, inception_kernels, pad="SAME")
 
-    l3_inc_conv = tf.concat([l3_inc_55_conv, l3_inc_33_conv], axis=3)
+    l3_inc_avg_pool_11_conv = conv_layer(l2_conv, (1,1), 64, inception_kernels, pad="SAME")
+    l3_inc_avg_pool_conv = tf.nn.avg_pool(l3_inc_avg_pool_11_conv, [1,2,2,1], [1,1,1,1],"SAME")
 
-    l3_inc_conv = conv_layer(l3_inc_conv, (1,1), 32, 16, pad="SAME")
+    l3_inc_conv = tf.concat([l3_inc_11_conv, l3_inc_55_conv, l3_inc_33_conv, l3_inc_avg_pool_conv], axis=3)
+
+    l3_inc_conv = conv_layer(l3_inc_conv, (1,1), 4*inception_kernels, 16, pad="SAME")
 
     l3_inc_ksize = [1,2,2,1]
     l3_inc_pool_strides = [1,2,2,1]
@@ -267,12 +256,12 @@ y = tf.placeholder(tf.uint8, (None), name="LABELS")
 one_hot_y = tf.one_hot(y,n_classes)
 keep_prob = tf.placeholder(tf.float32)
 
-EPOCHS = 15
+EPOCHS = 30
 BATCH_SIZE = 128
 rate = 0.001
 
-#logits = TrafficSignGrayNet(x, keep_prob)
-logits = TrafficSignNet(x, keep_prob)
+logits = TrafficSignGrayNet(x, keep_prob)
+#logits = TrafficSignNet(x, keep_prob)
 cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=one_hot_y, logits=logits)
 loss_operation = tf.reduce_mean(cross_entropy)
 optimizer = tf.train.AdamOptimizer(learning_rate = rate)
@@ -313,10 +302,41 @@ with tf.Session() as sess:
     saver.save(sess, './traffic_sign')
     print("Model saved")
 
-    ### Test model
-    with tf.Session() as sess:
-        saver.restore(sess, tf.train.latest_checkpoint('.'))
+### Test model
+with tf.Session() as sess:
+    saver.restore(sess, tf.train.latest_checkpoint('.'))
 
-        test_accuracy = evaluate(X_test_gray_normalized, y_test)
-        print("Test Accuracy = {:.3f}".format(test_accuracy))
+    test_accuracy = evaluate(X_test_gray_normalized, y_test)
+    print("Test Accuracy = {:.3f}".format(test_accuracy))
+
+
+def import_and_normalize(filename):
+    image = cv2.imread(filename)
+    return convert_to_gray_and_normalize(image)
+
+my_image_X = []
+my_image_Y = []
+
+my_image_X.append(import_and_normalize("images/general_caution/img1.jpg"))
+my_image_Y.append(18)
+my_image_X.append(import_and_normalize("images/general_caution/img2.jpg"))
+my_image_Y.append(18)
+my_image_X.append(import_and_normalize("images/no_entry/img1.jpg"))
+my_image_Y.append(17)
+my_image_X.append(import_and_normalize("images/speed_limit_30kmh/img1.jpg"))
+my_image_Y.append(1)
+my_image_X.append(import_and_normalize("images/speed_limit_30kmh/img2.jpg"))
+my_image_Y.append(1)
+my_image_X.append(import_and_normalize("images/speed_limit_70kmh/img1.png"))
+my_image_Y.append(4)
+my_image_X.append(import_and_normalize("images/speed_limit_70kmh/img2.jpg"))
+my_image_Y.append(4)
+my_image_X.append(import_and_normalize("images/turn_right_ahead/img1.jpg"))
+my_image_Y.append(33)
+
+with tf.Session() as sess:
+    saver.restore(sess, tf.train.latest_checkpoint('.'))
+
+    my_image_prediction = sess.run(tf.argmax(logits, 1), feed_dict={x:my_image_X, keep_prob: 1.0})
+    print("My image prediction = ", my_image_prediction)
 
