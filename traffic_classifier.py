@@ -118,88 +118,77 @@ X_test_gray_normalized = np.array(X_test_gray_normalized)
 ### Feel free to use as many code cells as needed.
 import tensorflow as tf
 
-def conv_layer(x, filter_shape, input_depth, filter_depth, pad="VALID"):
+def conv_layer(x, filter_shape, input_depth, filter_depth, pad="VALID", name="conv"):
     mu = 0
     sigma = 0.1
     
     l_weights = tf.Variable(tf.truncated_normal([filter_shape[0],filter_shape[1],input_depth,filter_depth], mu, sigma))
     l_bias = tf.Variable(tf.zeros(filter_depth))
     l_strides = [1,1,1,1]
-    l_conv = tf.nn.conv2d(x, l_weights, l_strides, padding=pad)
+    l_conv = tf.nn.conv2d(x, l_weights, l_strides, padding=pad, name=name)
     l_conv = tf.nn.bias_add(l_conv, l_bias)
 
-    # TODO: Activation.
+    # Activation.
     l_conv = tf.nn.relu(l_conv)
 
     return l_conv
 
+def inception_layer(x, input_depth, inception_kernels, name="incep"):
+    print("Inception layer:: input_depth:", input_depth, " kernels:", inception_kernels, " output_depth:", 4*inception_kernels)
+    l_inc_11_conv = conv_layer(x, (1,1), input_depth, inception_kernels, pad="SAME", name=name+"_11")
 
+    l_inc_55_11_conv = conv_layer(x, (1,1), input_depth, inception_kernels, pad="SAME", name=name+"_55_11")
+    l_inc_55_conv = conv_layer(l_inc_55_11_conv, (5,5), inception_kernels, inception_kernels, pad="SAME", name=name+"_55")
+ 
+    l_inc_33_11_conv = conv_layer(x, (1,1), input_depth, inception_kernels, pad="SAME", name=name+"_33_11")
+    l_inc_33_conv = conv_layer(l_inc_33_11_conv, (3,3), inception_kernels, inception_kernels, pad="SAME", name=name+"_33")
+
+    l_inc_avg_pool_conv = tf.nn.avg_pool(x, [1,2,2,1], [1,1,1,1],"SAME", name=name+"_avgpool")
+    l_inc_avg_pool_11_conv = conv_layer(l_inc_avg_pool_conv, (1,1), input_depth, inception_kernels, pad="SAME", name=name+"_avgpool_11")
+
+    l_inc_conv = tf.concat([l_inc_11_conv, l_inc_55_conv, l_inc_33_conv, l_inc_avg_pool_11_conv], axis=3)
+
+    return l_inc_conv
+    
 def TrafficSignNet(x, keep_prob):    
+    h_params = {'l1_kernels': 32,
+                'l1_maxpool_ksize': [1,2,2,1],
+                'l1_maxpool_strides': [1,2,2,1],
+                'l2_kernels': 64,
+                'l3_kernels': 8,
+                'l4_kernels': 16,
+                'l4_maxpool_ksize': [1,2,2,1],
+                'l4_maxpool_strides': [1,2,2,1],
+                'l5_avgpool_ksize': [1,5,5,1],
+                'l5_avgpool_strides': [1,1,1,1]}
+
     # Arguments used for tf.truncated_normal, randomly defines variables for the weights and biases for each layer
-    # Layer 1
-    l1_conv = conv_layer(x, (5,5), 1, 32, pad="SAME")
-    l1_conv = conv_layer(l1_conv, (5,5), 32, 32)
+    # Layer 1 input: 32x32x1  output: 14x14x['l1_kernels']
+    l1_conv = conv_layer(x, (5,5), 1, h_params['l1_kernels'], pad="SAME", name="layer1")
+    l1_conv = conv_layer(l1_conv, (5,5), h_params['l1_kernels'], h_params['l1_kernels'], name="layer1_a")
 
-    l1_ksize = [1,2,2,1]
-    l1_pool_strides = [1,2,2,1]
-    l1_conv = tf.nn.max_pool(l1_conv,l1_ksize,l1_pool_strides,"VALID")
+    l1_conv = tf.nn.max_pool(l1_conv,h_params['l1_maxpool_ksize'],h_params['l1_maxpool_strides'],"VALID", name="layer1_maxpool")
 
-    # Layer 2
-    l2_conv = conv_layer(l1_conv, (5,5), 32, 64, pad="SAME")
-    l2_conv = conv_layer(l2_conv, (5,5), 64, 64)
+   # print(tf.size(l1_conv))
 
-#    l2_ksize = [1,2,2,1]
-#    l2_pool_strides = [1,2,2,1]
-#    l2_conv = tf.nn.max_pool(l2_conv,l2_ksize,l2_pool_strides,"VALID")
+    # Layer 2 input: 14x14x['l1_kernels']  output: 10x10x['l2_kernels']
+    l2_conv = conv_layer(l1_conv, (5,5), h_params['l1_kernels'], h_params['l2_kernels'], pad="SAME", name="layer2")
+    l2_conv = conv_layer(l2_conv, (5,5), h_params['l2_kernels'], h_params['l2_kernels'], name="layer2_a")
 
-    # Layer 3 Inceptoin Layer
-    inception_kernels = 8
+    # Layer 3 Inception Layer input: 10x10x['l2_kernels']  output: 10x10x4*['l3_kernels']
+    l3_inc_conv = inception_layer(l2_conv, h_params['l2_kernels'], h_params['l3_kernels'], name="layer3")
 
-    l3_inc_11_conv = conv_layer(l2_conv, (1,1), 64, inception_kernels, pad="SAME")
+    # Layer 4 Inception Layer input: 10x10x4*['l3_kernels'] output: 5x5x4*['l4_kernels']
+    l4_inc_conv = inception_layer(l3_inc_conv, 4*h_params['l3_kernels'], h_params['l4_kernels'], name="layer4")
+    l4_inc_conv = tf.nn.max_pool(l4_inc_conv, h_params['l4_maxpool_ksize'], h_params['l4_maxpool_strides'],"VALID", name="layer4_maxpool")
 
-    l3_inc_55_11_conv = conv_layer(l2_conv, (1,1), 64, inception_kernels, pad="SAME")
-    l3_inc_55_conv = conv_layer(l3_inc_55_11_conv, (5,5), inception_kernels, inception_kernels, pad="SAME")
- 
-    l3_inc_33_11_conv = conv_layer(l2_conv, (1,1), 64, inception_kernels, pad="SAME")
-    l3_inc_33_conv = conv_layer(l3_inc_33_11_conv, (3,3), inception_kernels, inception_kernels, pad="SAME")
+    # Layer 5 Global Average Pooling input: 5x5x4*['l4_kernels'] output: 1x1x4*['l4_kernels']
+    l5_avgpool = tf.nn.avg_pool(l4_inc_conv, h_params['l5_avgpool_ksize'], h_params['l5_avgpool_strides'],"VALID", name="layer5_avgpool")
+    l5_avgpool = tf.nn.dropout(l5_avgpool, keep_prob)
 
-    l3_inc_avg_pool_11_conv = conv_layer(l2_conv, (1,1), 64, inception_kernels, pad="SAME")
-    l3_inc_avg_pool_conv = tf.nn.avg_pool(l3_inc_avg_pool_11_conv, [1,2,2,1], [1,1,1,1],"SAME")
-
-    l3_inc_conv = tf.concat([l3_inc_11_conv, l3_inc_55_conv, l3_inc_33_conv, l3_inc_avg_pool_conv], axis=3)
-
-    l3_inc_conv = conv_layer(l3_inc_conv, (1,1), 4*inception_kernels, 16, pad="SAME")
-
-    l3_inc_ksize = [1,2,2,1]
-    l3_inc_pool_strides = [1,2,2,1]
-    l3_inc_conv = tf.nn.max_pool(l3_inc_conv, l3_inc_ksize, l3_inc_pool_strides,"VALID")
- 
-    # TODO: Flatten. Input = 5x5x16. Output = 400.
-    l2_flat = tf.reshape(l3_inc_conv, [-1,400])
-    
-    # TODO: Layer 3: Fully Connected. Input = 400. Output = 120.
-    l3_dense = tf.layers.dense(l2_flat, 300)
-    
-    # TODO: Activation.
-    l3_dense = tf.nn.relu(l3_dense)
-    l3_dense = tf.nn.dropout(l3_dense, keep_prob)
-
-    # TODO: Layer 4: Fully Connected. Input = 120. Output = 84.
-    l4_dense = tf.layers.dense(l3_dense, 200)
-    
-    # TODO: Activation.
-    l4_dense = tf.nn.relu(l4_dense)
-    l4_dense = tf.nn.dropout(l4_dense, keep_prob)
-
-    # TODO: Layer 4: Fully Connected. Input = 120. Output = 84.
-    l5_dense = tf.layers.dense(l4_dense, 128)
-    
-    # TODO: Activation.
-    l5_dense = tf.nn.relu(l5_dense)
-    l5_dense = tf.nn.dropout(l5_dense, keep_prob)
-
-    # TODO: Layer 5: Fully Connected. Input = 84. Output = 10.
-    logits = tf.layers.dense(l5_dense, 43)
+    l5_avgpool_flat = tf.reshape(l5_avgpool, [-1, 4*h_params['l4_kernels']])
+    # Layer 6 Dense layer to get final logits
+    logits = tf.layers.dense(l5_avgpool_flat, 43)
     
     return logits
 
@@ -260,8 +249,8 @@ EPOCHS = 30
 BATCH_SIZE = 128
 rate = 0.001
 
-logits = TrafficSignGrayNet(x, keep_prob)
-#logits = TrafficSignNet(x, keep_prob)
+#logits = TrafficSignGrayNet(x, keep_prob)
+logits = TrafficSignNet(x, keep_prob)
 cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=one_hot_y, logits=logits)
 loss_operation = tf.reduce_mean(cross_entropy)
 optimizer = tf.train.AdamOptimizer(learning_rate = rate)
