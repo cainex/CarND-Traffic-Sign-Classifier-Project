@@ -88,20 +88,27 @@ X_valid_gray_normalized = []
 X_test_gray_normalized = []
 
 import cv2
+from skimage import exposure
+from skimage import img_as_ubyte
 
 def convert_to_gray_and_normalize(x):
-    return np.reshape((cv2.cvtColor(x, cv2.COLOR_RGB2GRAY)-[128])/[128], [32,32,1])  
+#    gray_image = img_as_ubyte(exposure.equalize_adapthist(x))
+#    gray_image = cv2.cvtColor(gray_image, cv2.COLOR_RGB2GRAY)
+#    return np.reshape((gray_image-[128])/[128], [32,32,1])  
+#    return np.reshape((cv2.cvtColor(x, cv2.COLOR_RGB2GRAY)-[128])/[128], [32,32,1])  
+    return np.reshape((cv2.cvtColor(x, cv2.COLOR_RGB2GRAY))/[255], [32,32,1])  
 
 ### Preprocess the data here. It is required to normalize the data. Other preprocessing steps could include 
 ### converting to grayscale, etc.
 ### Feel free to use as many code cells as needed.
-for i in range(n_train):
+from tqdm import tqdm
+for i in tqdm(range(n_train)):
     X_train_gray_normalized.append(convert_to_gray_and_normalize(X_train[i]))
 
-for i in range(n_validation):
+for i in tqdm(range(n_validation)):
     X_valid_gray_normalized.append(convert_to_gray_and_normalize(X_valid[i]))
 
-for i in range(n_test):
+for i in tqdm(range(n_test)):
     X_test_gray_normalized.append(convert_to_gray_and_normalize(X_test[i]))
 
 X_train_gray_normalized = np.array(X_train_gray_normalized)
@@ -303,29 +310,82 @@ def import_and_normalize(filename):
     image = cv2.imread(filename)
     return convert_to_gray_and_normalize(image)
 
+my_orig_X = []
 my_image_X = []
 my_image_Y = []
 
 my_image_X.append(import_and_normalize("images/general_caution/img1.jpg"))
+my_orig_X.append(cv2.imread("images/general_caution/img1.jpg"))
 my_image_Y.append(18)
+
 my_image_X.append(import_and_normalize("images/general_caution/img2.jpg"))
+my_orig_X.append(cv2.imread("images/general_caution/img2.jpg"))
 my_image_Y.append(18)
+
 my_image_X.append(import_and_normalize("images/no_entry/img1.jpg"))
+my_orig_X.append(cv2.imread("images/no_entry/img1.jpg"))
 my_image_Y.append(17)
+
 my_image_X.append(import_and_normalize("images/speed_limit_30kmh/img1.jpg"))
+my_orig_X.append(cv2.imread("images/speed_limit_30kmh/img1.jpg"))
 my_image_Y.append(1)
+
 my_image_X.append(import_and_normalize("images/speed_limit_30kmh/img2.jpg"))
+my_orig_X.append(cv2.imread("images/speed_limit_30kmh/img2.jpg"))
 my_image_Y.append(1)
+
 my_image_X.append(import_and_normalize("images/speed_limit_70kmh/img1.png"))
+my_orig_X.append(cv2.imread("images/speed_limit_70kmh/img1.png"))
 my_image_Y.append(4)
+
 my_image_X.append(import_and_normalize("images/speed_limit_70kmh/img2.jpg"))
+my_orig_X.append(cv2.imread("images/speed_limit_70kmh/img2.jpg"))
 my_image_Y.append(4)
+
 my_image_X.append(import_and_normalize("images/turn_right_ahead/img1.jpg"))
+my_orig_X.append(cv2.imread("images/turn_right_ahead/img1.jpg"))
 my_image_Y.append(33)
+
+my_image_X.append(import_and_normalize("images/bumpy_road/img1.jpg"))
+my_orig_X.append(cv2.imread("images/bumpy_road/img1.jpg"))
+my_image_Y.append(22)
+
+my_image_X.append(import_and_normalize("images/bumpy_road/img2.jpg"))
+my_orig_X.append(cv2.imread("images/bumpy_road/img2.jpg"))
+my_image_Y.append(22)
+
+my_image_X.append(import_and_normalize("images/bumpy_road/img2_2.jpg"))
+my_orig_X.append(cv2.imread("images/bumpy_road/img2_2.jpg"))
+my_image_Y.append(22)
+
+my_image_X.append(import_and_normalize("images/bumpy_road/img3.jpg"))
+my_orig_X.append(cv2.imread("images/bumpy_road/img3.jpg"))
+my_image_Y.append(22)
+
+my_image_X.append(import_and_normalize("images/bumpy_road/img4.jpg"))
+my_orig_X.append(cv2.imread("images/bumpy_road/img4.jpg"))
+my_image_Y.append(22)
+
+my_image_X.append(import_and_normalize("images/bumpy_road/img5.jpg"))
+my_orig_X.append(cv2.imread("images/bumpy_road/img5.jpg"))
+my_image_Y.append(22)
+
 
 with tf.Session() as sess:
     saver.restore(sess, tf.train.latest_checkpoint('.'))
 
     my_image_prediction = sess.run(tf.argmax(logits, 1), feed_dict={x:my_image_X, keep_prob: 1.0})
     print("My image prediction = ", my_image_prediction)
+    my_image_top_5_values, my_image_top_5_indices = sess.run(tf.nn.top_k(tf.nn.softmax(logits), 5), feed_dict={x:my_image_X, keep_prob: 1.0})
+    my_image_top_5_values = my_image_top_5_values*[100.0]
+    for img_index in range(my_image_top_5_values.shape[0]):
+        prediction_string = "{0}:: ".format(img_index)
+        for pred_index in range(my_image_top_5_values.shape[1]):
+            prediction_string += "{}:[{:.3f}%] ".format(my_image_top_5_indices[img_index][pred_index], my_image_top_5_values[img_index][pred_index])
+        print(prediction_string)
+            
+    
+#    print("My image top-5 predictions = ", my_image_top_5_values)
+    my_test_accuracy = evaluate(my_image_X, my_image_Y)
+    print("Accuracy of new images = {:.3f}".format(my_test_accuracy))
 
