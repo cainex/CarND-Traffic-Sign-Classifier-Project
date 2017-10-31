@@ -408,16 +408,17 @@ with tf.Session() as sess:
 #            print(i, ":", j, " ", my_image_top_5_indices[i][j],"=",sign_labels_lookup[my_image_top_5_indices[i][j]])
             my_image_top_5_labels[i][j] = sign_labels_lookup[my_image_top_5_indices[i][j]]
 
-    fig, ax = plt.subplots(ncols=2, nrows=5, figsize=(16,16))
+    fig, ax = plt.subplots(ncols=2, nrows=my_image_top_5_indices.shape[0], figsize=(16,16))
 
 #    for i in range(my_image_top_5_values.shape[0]):
-    for i in range(5):
+    for i in range(my_image_top_5_indices.shape[0]):
         ax[i][0].imshow(cv2.cvtColor(my_orig_X[i], cv2.COLOR_BGR2RGB))
         ax[i][1].barh(np.arange(len(my_image_top_5_values[i])), my_image_top_5_values[i], align='center', alpha=0.5)
         ax[i][1].set_yticks(np.arange(len(my_image_top_5_indices[i])))
-        ax[i][1].set_yticklabels(my_image_top_5_labels[i])
+        ax[i][1].set_yticklabels(my_image_top_5_labels[i], fontsize=10)
         ax[i][1].set_xlabel('Probability')
         
+    plt.tight_layout()
     plt.show()
     plt.cla()
     plt.clf()
