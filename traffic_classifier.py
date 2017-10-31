@@ -5,9 +5,9 @@ import pickle
 
 # TODO: Fill this in based on where you saved the training and testing data
 
-training_file = "/mnt/raid/projects/udacity/sdc_nd/datasets/traffic-signs-data/train.p"
-validation_file= "/mnt/raid/projects/udacity/sdc_nd/datasets/traffic-signs-data/valid.p"
-testing_file = "/mnt/raid/projects/udacity/sdc_nd/datasets/traffic-signs-data/test.p"
+training_file = "./data/train.p"
+validation_file= "./data/valid.p"
+testing_file = "./data/test.p"
 
 with open(training_file, mode='rb') as f:
     train = pickle.load(f)
@@ -43,9 +43,15 @@ image_shape = X_train.shape[1:]
 sign_labels = []
 labelreader = csv.reader(open('signnames.csv'), delimiter=",")
 for next_label in labelreader:
-    #print(next_label)
+#    print(next_label)
     sign_labels.append(next_label)
 sign_labels.pop(0)
+
+sign_labels_lookup = [''] * np.array(sign_labels).shape[0]
+for next_label in sign_labels:
+    sign_labels_lookup[int(next_label[0])]=next_label[1]
+
+#print(sign_labels_lookup)
 
 n_classes = np.array(sign_labels).shape[0]
 
@@ -74,14 +80,20 @@ ax[0][2].hist(test['labels'], bins=n_classes)
 ax[0][2].set_title('Dist of signs in test set')
 
 ax[1][0].imshow(X_train[0])
+ax[1][0].set_title(sign_labels_lookup[y_train[0]])
 ax[1][1].imshow(X_train[1000])
+ax[1][1].set_title(sign_labels_lookup[y_train[1000]])
 ax[1][2].imshow(X_train[2000])
+ax[1][2].set_title(sign_labels_lookup[y_train[2000]])
 
 ax[2][0].imshow(rgb2gray(X_train[0]), cmap='gray')
 ax[2][1].imshow(rgb2gray(X_train[1000]), cmap='gray')
 ax[2][2].imshow(rgb2gray(X_train[2000]), cmap='gray')
 
-# plt.show()
+plt.show()
+plt.cla()
+plt.clf()
+plt.close()
 
 X_train_gray_normalized = []
 X_valid_gray_normalized = []
@@ -114,12 +126,6 @@ for i in tqdm(range(n_test)):
 X_train_gray_normalized = np.array(X_train_gray_normalized)
 X_valid_gray_normalized = np.array(X_valid_gray_normalized)
 X_test_gray_normalized = np.array(X_test_gray_normalized)
-
-
-#print("RGB shape ", X_train[0].shape)
-#print("GRAY shape ",X_train_gray.shape)
-#print(X_train[0][0])
-#print(X_train_gray_normalized[0][0])
 
 ### Define your architecture here.
 ### Feel free to use as many code cells as needed.
@@ -370,12 +376,22 @@ my_image_X.append(import_and_normalize("images/bumpy_road/img5.jpg"))
 my_orig_X.append(cv2.imread("images/bumpy_road/img5.jpg"))
 my_image_Y.append(22)
 
+fig, ax = plt.subplots(ncols=5, nrows=3, figsize=(16,16))
+
+for i in range(len(my_image_X)):
+    ax[int(i/5)][i%5].imshow(cv2.cvtColor(my_orig_X[i], cv2.COLOR_BGR2RGB))
+    ax[int(i/5)][i%5].set_title(sign_labels_lookup[my_image_Y[i]])
+
+plt.show()
+plt.cla()
+plt.clf()
+plt.close()
 
 with tf.Session() as sess:
     saver.restore(sess, tf.train.latest_checkpoint('.'))
 
     my_image_prediction = sess.run(tf.argmax(logits, 1), feed_dict={x:my_image_X, keep_prob: 1.0})
-    print("My image prediction = ", my_image_prediction)
+#    print("My image prediction = ", my_image_prediction)
     my_image_top_5_values, my_image_top_5_indices = sess.run(tf.nn.top_k(tf.nn.softmax(logits), 5), feed_dict={x:my_image_X, keep_prob: 1.0})
     my_image_top_5_values = my_image_top_5_values*[100.0]
     for img_index in range(my_image_top_5_values.shape[0]):
@@ -383,8 +399,30 @@ with tf.Session() as sess:
         for pred_index in range(my_image_top_5_values.shape[1]):
             prediction_string += "{}:[{:.3f}%] ".format(my_image_top_5_indices[img_index][pred_index], my_image_top_5_values[img_index][pred_index])
         print(prediction_string)
-            
-    
+
+#    print(my_image_top_5_indices.shape)
+    my_image_top_5_labels = [['' for x in range(my_image_top_5_indices.shape[1])] for y in range(my_image_top_5_indices.shape[0])]
+#    print(np.array(my_image_top_5_labels).shape)
+    for i in range(my_image_top_5_indices.shape[0]):
+        for j in range(my_image_top_5_indices.shape[1]):
+#            print(i, ":", j, " ", my_image_top_5_indices[i][j],"=",sign_labels_lookup[my_image_top_5_indices[i][j]])
+            my_image_top_5_labels[i][j] = sign_labels_lookup[my_image_top_5_indices[i][j]]
+
+    fig, ax = plt.subplots(ncols=2, nrows=5, figsize=(16,16))
+
+#    for i in range(my_image_top_5_values.shape[0]):
+    for i in range(5):
+        ax[i][0].imshow(cv2.cvtColor(my_orig_X[i], cv2.COLOR_BGR2RGB))
+        ax[i][1].barh(np.arange(len(my_image_top_5_values[i])), my_image_top_5_values[i], align='center', alpha=0.5)
+        ax[i][1].set_yticks(np.arange(len(my_image_top_5_indices[i])))
+        ax[i][1].set_yticklabels(my_image_top_5_labels[i])
+        ax[i][1].set_xlabel('Probability')
+        
+    plt.show()
+    plt.cla()
+    plt.clf()
+    plt.close()
+
 #    print("My image top-5 predictions = ", my_image_top_5_values)
     my_test_accuracy = evaluate(my_image_X, my_image_Y)
     print("Accuracy of new images = {:.3f}".format(my_test_accuracy))
