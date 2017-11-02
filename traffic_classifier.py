@@ -2,6 +2,18 @@
 
 # Load pickled data
 import pickle
+from sklearn.utils import shuffle
+import numpy as np
+import pandas as pd
+import csv
+import matplotlib.pyplot as plt
+from skimage.color import rgb2gray
+from skimage import exposure
+from skimage import img_as_ubyte
+import cv2
+from tqdm import tqdm
+import random
+from itertools import chain
 
 # TODO: Fill this in based on where you saved the training and testing data
 
@@ -23,9 +35,6 @@ X_test, y_test = test['features'], test['labels']
 
 ### Replace each question mark with the appropriate value. 
 ### Use python, pandas or numpy methods rather than hard coding the results
-import numpy as np
-import pandas as pd
-import csv
 
 # TODO: Number of training examples
 n_train = X_train.shape[0]
@@ -63,8 +72,6 @@ print("Number of classes =", n_classes)
 
 ### Data exploration visualization code goes here.
 ### Feel free to use as many code cells as needed.
-import matplotlib.pyplot as plt
-from skimage.color import rgb2gray
 # Visualizations will be shown in the notebook.
 #%matplotlib inline
 
@@ -96,26 +103,41 @@ plt.clf()
 plt.close()
 
 X_train_gray_normalized = []
+y_train_gray_normalized = []
 X_valid_gray_normalized = []
 X_test_gray_normalized = []
 
-import cv2
-from skimage import exposure
-from skimage import img_as_ubyte
-
-def convert_to_gray_and_normalize(x):
+def convert_to_gray(x):
 #    gray_image = img_as_ubyte(exposure.equalize_adapthist(x))
 #    gray_image = cv2.cvtColor(gray_image, cv2.COLOR_RGB2GRAY)
 #    return np.reshape((gray_image-[128])/[128], [32,32,1])  
 #    return np.reshape((cv2.cvtColor(x, cv2.COLOR_RGB2GRAY)-[128])/[128], [32,32,1])  
-    return np.reshape((cv2.cvtColor(x, cv2.COLOR_RGB2GRAY))/[255], [32,32,1])  
+    return cv2.cvtColor(x, cv2.COLOR_RGB2GRAY)
 
+def rotate_image(x, rot, scale):
+    M = cv2.getRotationMatrix2D((16,16),rot,scale)
+    return cv2.warpAffine(x,M,(32,32),borderMode=cv2.BORDER_REPLICATE)
+      
+
+def normalize_image(x):
+    return np.reshape(x/[255], [32,32,1])
+
+def convert_to_gray_and_normalize(x):
+    return normalize_image(convert_to_gray(x))
+
+
+num_additional_images = 3
 ### Preprocess the data here. It is required to normalize the data. Other preprocessing steps could include 
 ### converting to grayscale, etc.
 ### Feel free to use as many code cells as needed.
-from tqdm import tqdm
 for i in tqdm(range(n_train)):
     X_train_gray_normalized.append(convert_to_gray_and_normalize(X_train[i]))
+    y_train_gray_normalized.append(y_train[i])
+    for j in range(0,num_additional_images):
+        rotation = random.choice(list(chain(range(-30,-5), range(5,30))))
+        scale = random.uniform(0.75, 1.0)
+        X_train_gray_normalized.append(normalize_image(rotate_image(convert_to_gray(X_train[i]), rotation, scale)))
+        y_train_gray_normalized.append(y_train[i])
 
 for i in tqdm(range(n_validation)):
     X_valid_gray_normalized.append(convert_to_gray_and_normalize(X_valid[i]))
@@ -250,7 +272,6 @@ def TrafficSignGrayNet(x, keep_prob):
 ### Once a final model architecture is selected, 
 ### the accuracy on the test set should be calculated and reported as well.
 ### Feel free to use as many code cells as needed.
-from sklearn.utils import shuffle
 
 
 x = tf.placeholder(tf.float32, (None, 32,32,1), name="INPUT")
@@ -285,24 +306,29 @@ def evaluate(X_data, y_data):
 
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
-    num_examples = n_train
+    num_examples = (num_additional_images+1)*n_train
     
+    previous_accuracy = 0.0
     print("Training...")
     print()
     for i in range(EPOCHS):
-        X_train_gray_normalized, y_train = shuffle(X_train_gray_normalized, y_train)
-        for offset in range(0, num_examples, BATCH_SIZE):
+        print("EPOCH {} ...".format(i+1))
+        X_train_gray_normalized, y_train_gray_normalized = shuffle(X_train_gray_normalized, y_train_gray_normalized)
+        for offset in tqdm(range(0, num_examples, BATCH_SIZE)):
             end = offset + BATCH_SIZE
-            batch_x, batch_y = X_train_gray_normalized[offset:end], y_train[offset:end]
+            batch_x, batch_y = X_train_gray_normalized[offset:end], y_train_gray_normalized[offset:end]
             sess.run(training_operation, feed_dict={x: batch_x, y: batch_y, keep_prob: 0.4})
 
         validation_accuracy = evaluate(X_valid_gray_normalized, y_valid)
-        print("EPOCH {} ...".format(i+1))
         print("Validation Accuracy = {:.3f}".format(validation_accuracy))
+        if (validation_accuracy >= previous_accuracy):
+            saver.save(sess, './traffic_sign')
+            print("Model saved")
+            previous_accuracy = validation_accuracy
         print()
         
-    saver.save(sess, './traffic_sign')
-    print("Model saved")
+    #saver.save(sess, './traffic_sign')
+    #print("Model saved")
 
 ### Test model
 with tf.Session() as sess:
@@ -427,4 +453,3 @@ with tf.Session() as sess:
 #    print("My image top-5 predictions = ", my_image_top_5_values)
     my_test_accuracy = evaluate(my_image_X, my_image_Y)
     print("Accuracy of new images = {:.3f}".format(my_test_accuracy))
-
