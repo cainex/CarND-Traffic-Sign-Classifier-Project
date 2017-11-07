@@ -99,30 +99,32 @@ Additionally dropout was added in the average pooling layer.
 
 My final model consisted of the following layers:
 
-| Type                  | Patch Size/Stride	| Padding | Output Size |
-|:---------------------:|:-----------------:|:-------:|:-----------:| 
-| Convolution           | 5x5/1             | SAME    | 32x32x32    |
-| Convolution           | 5x5/1             | VALID   | 28x28x32    |
-| Max Pool              | 2x2/2             | VALID   | 14x14x32    |
-| Convolution           | 5x5/1             | SAME    | 14x14x64    |
-| Convolution           | 5x5/1             | VALID   | 10x10x64    |
-| Inception             |                   |         | 10x10x32    |
-| Inception             |                   |         | 10x10x64    |
-| Max Pool              | 2x2/2             | VALID   | 5x5x64      |
-| Avg Pool (w/ dropout) | 5x5/1             | VALID   | 1x1x64      |
-| Fully Connected       |                   |         | 43          |
+| Type                  | Patch Size/Stride	| Padding | Kernels/Branch |Output Size |
+|:---------------------:|:-----------------:|:-------:|:--------------:|:----------:| 
+| Convolution           | 5x5/1             | SAME    |                | 32x32x32   |
+| Convolution           | 5x5/1             | VALID   |                | 28x28x32   |
+| Max Pool              | 2x2/2             | VALID   |                | 14x14x32   |
+| Convolution           | 5x5/1             | SAME    |                | 14x14x64   |
+| Convolution           | 5x5/1             | VALID   |                | 10x10x64   |
+| Inception             |                   |         | 8              | 10x10x32   |
+| Inception             |                   |         | 16             | 10x10x64   |
+| Max Pool              | 2x2/2             | VALID   |                | 5x5x64     |
+| Avg Pool (w/ dropout) | 5x5/1             | VALID   |                | 1x1x64     |
+| Fully Connected       |                   |         |                | 43         |
 
 
 ####3. Describe how you trained your model. The discussion can include the type of optimizer, the batch size, number of epochs and any hyperparameters such as learning rate.
 
-To train the model, I used an ....
+The model was trained using the AdamOptimizer reducing the mean of the cross entropy. The training was performed using a single machine with a Core i5 4670 and a GTX 1080 GPU using a batch size of 128, a learning rate of 0.001, and a dropout of 60%. The training was performed over 30 epochs, with the data set being shuffled between each epoch. The model was saved at each epoch if the validation accuracy was equal to or greater than the validation accuracy of all previous epochs. This captures the best trained model accross all epochs. Using this method could have allowed for early stopping when no more improvement of accuracy was seen, but this didn't seem necessary with 30 epochs. Each epoch ran at approximately 60 iterations/s.
 
 ####4. Describe the approach taken for finding a solution and getting the validation set accuracy to be at least 0.93. Include in the discussion the results on the training, validation and test sets and where in the code these were calculated. Your approach may have been an iterative process, in which case, outline the steps you took to get to the final solution and why you chose those steps. Perhaps your solution involved an already well known implementation or architecture. In this case, discuss why you think the architecture is suitable for the current problem.
 
 My final model results were:
-* training set accuracy of ?
-* validation set accuracy of ? 
-* test set accuracy of ?
+* Training set accuracy of 99.9%
+* validation set accuracy of 98.9%
+* test set accuracy of 97.5%
+
+Although this did fluctuate some between different training runs.
 
 If an iterative approach was chosen:
 * What was the first architecture that was tried and why was it chosen?
