@@ -221,26 +221,40 @@ For image 13:
 ### (Optional) Visualizing the Neural Network (See Step 4 of the Ipython notebook for more details)
 #### 1. Discuss the visual output of your trained network's feature maps. What characteristics did the neural network use to make classifications?
 
+I created visualizations for the convolution layers and inceptions layers using two images of the same sign for comparison.
+
 ##### Layer 1
+
+This layer seems to be performaning something that looks like Canny edge detection on the images. The edges within the images are clearly visible here.
+
 ![alt text][layer1_vis]
 ![alt text][layer1_vis_2]
 
 ##### Layer 2
+
+This layer appears to be looking more precisely for edges of the sign. This is particularly visible in the second image.
+
 ![alt text][layer2_vis]
 ![alt text][layer2_vis_2]
 
 ##### Layer 3
+
+This layer still seems to be activating on particular traits of the image, although it is getting somewhat difficult to distringuish the parts of the image in these cells.
+
 ![alt text][layer3_vis]
 ![alt text][layer3_vis_2]
 
-##### Layer 4
+##### Final Layers
+For final layers, it is very difficult to determine what the model is identifying, however, we can see that cells with large activations are similar between the two images. This makes sense, as they are images of the same sign.
+
+###### Layer 4
 ![alt text][layer4_vis]
 ![alt text][layer4_vis_2]
 
-##### First Inception Layer
+###### First Inception Layer
 ![alt text][layer5_vis]
 ![alt text][layer5_vis_2]
 
-##### Second Inception Layer
+###### Second Inception Layer
 ![alt text][layer6_vis]
 ![alt text][layer6_vis_2]
